@@ -21,9 +21,6 @@ func TestWifiLogger(t *testing.T) {
 		}
 
 		myLogger.LogConnectivityCheck(true, time.Second*2, nil)
-		if err != nil {
-			t.Fatalf("Failed to log: %v", err)
-		}
 
 		content, err := os.ReadFile(logFile)
 		if err != nil {
@@ -31,7 +28,7 @@ func TestWifiLogger(t *testing.T) {
 		}
 
 		logString := string(content)
-		if !strings.Contains(logString, "CONNECTED TO google.com") {
+		if !strings.Contains(logString, "CONNECTED IN") {
 			t.Errorf("Expected success log, got: %s", logString)
 		}
 	})
