@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"WifiTracker/internals/alerts"
 	"errors"
 	"fmt"
 	"os"
@@ -9,8 +10,6 @@ import (
 	"runtime"
 	"syscall"
 	"time"
-
-	"WifiTracker/internals/alerts"
 )
 
 var ErrConnectionDown = errors.New("connection is down")
@@ -92,7 +91,6 @@ func (w *WifiMonitor) Start() {
 						outageStartTime = time.Now()
 						outageStart = true
 
-						alerts.SendOutageAlert(time.Since(outageStartTime))
 						w.logOutageStart(time.Now())
 					}
 				}
@@ -103,6 +101,7 @@ func (w *WifiMonitor) Start() {
 					// Calculate total outage duration
 					totalDuration := time.Since(outageStartTime)
 					w.logOutageEnd(totalDuration, time.Now())
+					alerts.SendOutageAlert(time.Since(outageStartTime))
 					outageStart = false
 				}
 
