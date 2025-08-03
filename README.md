@@ -1,7 +1,7 @@
-# WifiTracker 🛜
+# InternetConnectivityTracker 🛜
 ---
 
-`WifiTracker` is a cross-platform downtime checking software that stores downtimes inside of log files.
+`InternetConnectivityTracker` is a cross-platform downtime checking software that stores downtimes inside of log files.
 
 ![Icon Warning Message](bin/iconwarning.png)
 
@@ -10,8 +10,8 @@
 
 ### From Source
 ```bash
-git clone https://github.com/mileaage/WifiTracker
-cd WifiTracker
+git clone https://github.com/mileaage/InternetConnectivityTracker
+cd InternetConnectivityTracker
 go run main.go
 ```
 ## Contributing
@@ -20,7 +20,7 @@ Contributions are welcome! Here are some ways you can help:
 
 ### Getting Started
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/yourusername/WifiTracker`
+2. Clone your fork: `git clone https://github.com/yourusername/InternetConnectivityTracker`
 3. Create a feature branch: `git checkout -b feature-name`
 4. Make your changes
 5. Test your changes: `go run main.go`
@@ -40,4 +40,4 @@ Contributions are welcome! Here are some ways you can help:
 - Follow existing code style
 
 ### Issues
-Found a bug or have an idea? [Open an issue](https://github.com/mileaage/WifiTracker/issues) first to discuss it!
+Found a bug or have an idea? [Open an issue](https://github.com/mileaage/InternetConnectivityTracker/issues) first to discuss it!
