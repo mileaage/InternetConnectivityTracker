@@ -3,7 +3,7 @@
 
 `WifiTracker` is a cross-platform downtime checking software that stores downtimes inside of log files.
 
-![Icon Warning Message](bin\iconwarning.png)
+![Icon Warning Message](bin/iconwarning.png)
 
 
 ## Installation & Usage
