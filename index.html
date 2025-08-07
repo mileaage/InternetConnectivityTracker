@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Connectivity Data</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-md bg-white rounded-lg shadow-md p-6">
+        <h1 class="text-2xl font-bold mb-4 text-center">WebSocket Chat</h1>
+        
+        <div id="messages" class="h-64 mb-4 border border-gray-200 rounded-lg p-3 overflow-y-auto bg-gray-50">
+            <!-- Messages will appear here -->
+        </div>
+
+        <div class="flex space-x-2">
+            <input type="text" id="messageInput" placeholder="Type your message" class="flex-grow border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button id="sendButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
+                Send
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const socket = new WebSocket("ws://localhost:8080/ws");
+        const messagesDiv = document.getElementById("messages");
+        const messageInput = document.getElementById("messageInput");
+        const sendButton = document.getElementById("sendButton");
+
+        socket.onopen = (event) => {
+            console.log("WebSocket connection opened:", event);
+            const statusMessage = document.createElement('p');
+            statusMessage.textContent = "Connection established.";
+            statusMessage.className = "text-green-600 italic text-sm";
+            messagesDiv.appendChild(statusMessage);
+        };
+
+        socket.onmessage = (event) => {
+            const message = event.data;
+            const messageElement = document.createElement('p');
+            messageElement.textContent = message;
+            messageElement.className = "text-gray-700";
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight; 
+        };
+
+        socket.onclose = (event) => {
+            console.log("WebSocket connection closed:", event);
+            const statusMessage = document.createElement('p');
+            statusMessage.textContent = "Connection closed.";
+            statusMessage.className = "text-red-600 italic text-sm";
+            messagesDiv.appendChild(statusMessage);
+        };
+
+        socket.onerror = (error) => {
+            console.error("WebSocket error:", error);
+            const statusMessage = document.createElement('p');
+            statusMessage.textContent = "An error occurred.";
+            statusMessage.className = "text-red-600 font-bold text-sm";
+            messagesDiv.appendChild(statusMessage);
+        };
+
+        const sendMessage = () => {
+            const message = messageInput.value;
+            if (message && socket.readyState === WebSocket.OPEN) {
+                socket.send(message);
+                const sentMessageElement = document.createElement('p');
+                sentMessageElement.textContent = `You: ${message}`;
+                sentMessageElement.className = "text-blue-700 text-right";
+                messagesDiv.appendChild(sentMessageElement);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                messageInput.value = "";
+            }
+        };
+
+        sendButton.onclick = sendMessage;
+
+        messageInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
