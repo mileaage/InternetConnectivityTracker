@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -41,35 +42,76 @@ func (c ConnectionStatus) String() string {
 type WifiMonitor struct {
 	checkInterval time.Duration
 
-	// dependencies
 	logger WifiLogger
 
-	// state
 	isRunning  bool
 	lastStatus ConnectionStatus
 
-	// mock
+	averageLatency float32
+	pingCount      float32
+
+	DataLock sync.RWMutex
+
 	simulateOutage bool
 }
 
+type DeviceData struct {
+	Online  string
+	Latency string
+}
+
+var (
+	AllDevices   = []*WifiMonitor{}
+	devicesMutex sync.RWMutex
+)
+
+func GetAllDeviceData() []DeviceData {
+	devicesMutex.RLock()
+	defer devicesMutex.RUnlock()
+
+	result := make([]DeviceData, 0, len(AllDevices))
+
+	for _, monitor := range AllDevices {
+		monitor.DataLock.RLock()
+		result = append(result, DeviceData{
+			Online:  monitor.lastStatus.String(),
+			Latency: fmt.Sprintf("%f", monitor.averageLatency),
+		})
+		monitor.DataLock.RUnlock()
+	}
+
+	return result
+}
+
 func New(checkInterval time.Duration, logger *WifiLogger) *WifiMonitor {
-	return &WifiMonitor{
+	monitor := &WifiMonitor{
 		checkInterval:  checkInterval,
 		logger:         *logger,
 		isRunning:      false,
 		lastStatus:     Inactive,
 		simulateOutage: false,
+		averageLatency: 0,
+		pingCount:      0,
 	}
+
+	devicesMutex.Lock()
+	AllDevices = append(AllDevices, monitor)
+	devicesMutex.Unlock()
+
+	return monitor
 }
 
 func (w *WifiMonitor) Start() {
 	ticker := time.NewTicker(w.checkInterval)
 	defer ticker.Stop()
 
+	w.DataLock.Lock()
 	w.lastStatus = Running
+	w.isRunning = true
+	w.DataLock.Unlock()
+
 	w.logStatusChange(Inactive, Running, time.Now())
 
-	// handle ctrl + c
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
@@ -81,6 +123,11 @@ func (w *WifiMonitor) Start() {
 		case <-ticker.C:
 			down, avgResponse := w.isConnectionDown()
 
+			w.DataLock.Lock()
+			w.pingCount++
+			w.averageLatency = (w.averageLatency*(w.pingCount-1) + float32(avgResponse.Milliseconds())) / w.pingCount
+			w.DataLock.Unlock()
+
 			if down {
 				fmt.Printf("Response time: %f seconds\n", avgResponse.Seconds())
 				w.logConnectivityCheck(false, avgResponse, ErrConnectionDown)
@@ -91,40 +138,61 @@ func (w *WifiMonitor) Start() {
 						outageStartTime = time.Now()
 						outageStart = true
 
+						w.DataLock.Lock()
+						if w.lastStatus != Down {
+							w.logStatusChange(w.lastStatus, Down, time.Now())
+							w.lastStatus = Down
+						}
+						w.DataLock.Unlock()
+
 						w.logOutageStart(time.Now())
 					}
 				}
 			} else {
-				// good connection
 				failCount = 0
 				if outageStart {
-					// Calculate total outage duration
 					totalDuration := time.Since(outageStartTime)
 					w.logOutageEnd(totalDuration, time.Now())
-					alerts.SendOutageAlert(time.Since(outageStartTime))
+					alerts.SendOutageAlert(totalDuration)
 					outageStart = false
 				}
 
-				// log success too
 				w.logConnectivityCheck(true, avgResponse, nil)
 
-				// now we check the speed
+				newStatus := Running
 				if avgResponse.Seconds() > 3.0 {
-					if w.lastStatus != Slow {
-						w.logStatusChange(w.lastStatus, Slow, time.Now())
-						w.lastStatus = Slow
-					} else {
-						w.logStatusChange(w.lastStatus, Running, time.Now())
-						w.lastStatus = Running
-					}
+					newStatus = Slow
 				}
+
+				w.DataLock.Lock()
+				if w.lastStatus != newStatus {
+					w.logStatusChange(w.lastStatus, newStatus, time.Now())
+					w.lastStatus = newStatus
+				}
+				w.DataLock.Unlock()
 			}
 
 		case <-sigChan:
 			fmt.Println("\nMonitoring stopped by user")
+			w.DataLock.Lock()
+			w.isRunning = false
+			w.lastStatus = Inactive
+			w.DataLock.Unlock()
 			return
 		}
 	}
+}
+
+func (w *WifiMonitor) GetStatus() ConnectionStatus {
+	w.DataLock.RLock()
+	defer w.DataLock.RUnlock()
+	return w.lastStatus
+}
+
+func (w *WifiMonitor) GetAverageLatency() float32 {
+	w.DataLock.RLock()
+	defer w.DataLock.RUnlock()
+	return w.averageLatency
 }
 
 func (w *WifiMonitor) ping(target string) (bool, time.Duration) {
@@ -138,7 +206,6 @@ func (w *WifiMonitor) ping(target string) (bool, time.Duration) {
 	case "darwin", "linux", "freebsd", "openbsd", "netbsd":
 		cmd = exec.Command("ping", "-c", "1", target)
 	default:
-		// fall back for unknown os
 		cmd = exec.Command("ping", "-c", "1", target)
 	}
 	err := cmd.Run()
@@ -168,13 +235,12 @@ func (w *WifiMonitor) logOutageEnd(duration time.Duration, timestamp time.Time) 
 }
 
 var defaultTargets = []string{
-	"8.8.8.8",        // Google DNS
-	"1.1.1.1",        // Cloudflare DNS
-	"208.67.222.222", // OpenDNS
-	"8.8.4.4",        // Google DNS secondary
+	"8.8.8.8",
+	"1.1.1.1",
+	"208.67.222.222",
+	"8.8.4.4",
 }
 
-// Consider connection down only if 3+ targets fail
 func (w *WifiMonitor) isConnectionDown() (bool, time.Duration) {
 	failures := 0
 	totalDuration := time.Duration(0)

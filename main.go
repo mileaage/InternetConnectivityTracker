@@ -1,27 +1,26 @@
 package main
 
 import (
-	"net/http"
+	"log"
+	"time"
 
-	"github.com/a-h/templ"
+	"WifiTracker/internals/dashboard"
+	"WifiTracker/internals/monitor"
 )
 
-// "WifiTracker/internals/monitor"
-
 func main() {
-	// myLogger, err := monitor.NewWifiLogger("log.txt")
-	// if err != nil {
-	// 	panic(err)
-	// }
+	myLogger, err := monitor.NewWifiLogger("log.txt")
+	if err != nil {
+		panic(err)
+	}
 
-	// myMonitor := monitor.New(time.Second, myLogger)
-	// myMonitor.Start()
+	go func() {
+		log.Println("starting server (please don't block)")
+		dashboard.StartDashboard()
+	}()
 
-	// start the dashboard
+	log.Printf("starting monitor")
+	myMonitor := monitor.New(time.Second, myLogger)
+	myMonitor.Start()
 
-	// start the websocket server separately
-	component := headerTemplate("WifiConnect")
-
-	http.Handle("/", templ.Handler(component))
-	http.ListenAndServe(":3000", nil)
 }

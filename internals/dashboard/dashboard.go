@@ -1,11 +1,27 @@
 package dashboard
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"time"
+
+	"WifiTracker/internals/monitor"
 
 	"github.com/gorilla/websocket"
 )
+
+// TODO:
+// switch out templates for just text/template since it's more general purpose
+// complete dashboard, add statistics, cost impact
+// add multiple protocols
+// scrape potential downtimes and attribute them
+// add measures of seveity
+// maintenance windows
+// custom webhooks perhaps
+// group related notifications if in a certain time period
+// have messages ready for teams / groupchats after down time
+// metrics export feature
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -15,7 +31,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func MainHandler(w http.ResponseWriter, r *http.Request) {
+func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 
 	// upgrade
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -29,18 +45,33 @@ func MainHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("WebSocket connection established")
 
 	for {
-		messageType, p, err := conn.ReadMessage()
-		if err != nil {
-			log.Printf("Read message error: %v", err)
-			return
+
+		deviceData := monitor.GetAllDeviceData()
+
+		if len(deviceData) == 0 {
+			continue
 		}
 
-		log.Printf("Received message: %s", string(p))
+		fmt.Printf("%+v\n", deviceData)
 
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Printf("Write message error: %v", err)
-			return
+		// experimental for now
+		firstValue := deviceData[0]
+
+		if err := conn.WriteJSON(firstValue); err != nil {
+			log.Fatalf("Error Parsing JSON: %v", deviceData)
 		}
+
+		time.Sleep(time.Second)
 	}
 
+}
+
+func StartDashboard() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "index.html")
+	})
+
+	http.HandleFunc("/ws", WebsocketHandler)
+
+	http.ListenAndServe("localhost:8080", nil)
 }
