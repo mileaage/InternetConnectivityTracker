@@ -66,6 +66,10 @@ func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func EvaluateCostImpact(outageTime float32) float32 {
+	return outageTime * 0.05
+}
+
 func StartDashboard() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "index.html")
