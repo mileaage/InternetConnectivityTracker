@@ -11,6 +11,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 var ErrConnectionDown = errors.New("connection is down")
@@ -39,10 +41,19 @@ func (c ConnectionStatus) String() string {
 	}
 }
 
+type StorageProvider interface {
+	LogConnectivityCheck(deviceID string, success bool, responseTime time.Duration, timestamp time.Time, err error) error
+	LogStatusChange(deviceID string, from, to ConnectionStatus, timestamp time.Time) error
+	LogOutageStart(deviceID string, timestamp time.Time) error
+	LogOutageEnd(deviceID string, duration time.Duration, timestamp time.Time) error
+	GetDeviceStats(deviceID string, since time.Time) (*DeviceData, error)
+}
+
 type WifiMonitor struct {
+	DeviceID      string
 	checkInterval time.Duration
 
-	logger WifiLogger
+	storage StorageProvider
 
 	isRunning  bool
 	lastStatus ConnectionStatus
@@ -65,28 +76,11 @@ var (
 	devicesMutex sync.RWMutex
 )
 
-func GetAllDeviceData() []DeviceData {
-	devicesMutex.RLock()
-	defer devicesMutex.RUnlock()
-
-	result := make([]DeviceData, 0, len(AllDevices))
-
-	for _, monitor := range AllDevices {
-		monitor.DataLock.RLock()
-		result = append(result, DeviceData{
-			Online:  monitor.lastStatus.String(),
-			Latency: fmt.Sprintf("%f", monitor.averageLatency),
-		})
-		monitor.DataLock.RUnlock()
-	}
-
-	return result
-}
-
-func New(checkInterval time.Duration, logger *WifiLogger) *WifiMonitor {
+func New(checkInterval time.Duration, storage StorageProvider) *WifiMonitor {
 	monitor := &WifiMonitor{
+		DeviceID:       uuid.NewString(),
 		checkInterval:  checkInterval,
-		logger:         *logger,
+		storage:        storage,
 		isRunning:      false,
 		lastStatus:     Inactive,
 		simulateOutage: false,
@@ -219,19 +213,19 @@ func (w *WifiMonitor) ping(target string) (bool, time.Duration) {
 }
 
 func (w *WifiMonitor) logConnectivityCheck(success bool, responseTime time.Duration, err error) {
-	w.logger.LogConnectivityCheck(success, responseTime, err)
+	w.storage.LogConnectivityCheck(w.DeviceID, success, responseTime, time.Now(), err)
 }
 
 func (w *WifiMonitor) logStatusChange(from, to ConnectionStatus, timestamp time.Time) {
-	w.logger.LogStatusChange(from, to, timestamp)
+	w.storage.LogStatusChange(w.DeviceID, from, to, timestamp)
 }
 
 func (w *WifiMonitor) logOutageStart(timestamp time.Time) {
-	w.logger.LogOutageStart(timestamp)
+	w.storage.LogOutageStart(w.DeviceID, timestamp)
 }
 
 func (w *WifiMonitor) logOutageEnd(duration time.Duration, timestamp time.Time) {
-	w.logger.LogOutageEnd(duration, timestamp)
+	w.storage.LogOutageEnd(w.DeviceID, duration, timestamp)
 }
 
 var defaultTargets = []string{
@@ -257,4 +251,22 @@ func (w *WifiMonitor) isConnectionDown() (bool, time.Duration) {
 	isDown := failures >= 3
 
 	return isDown, avgDuration
+}
+
+func GetAllDeviceData() []DeviceData {
+	devicesMutex.RLock()
+	defer devicesMutex.RUnlock()
+
+	result := make([]DeviceData, 0, len(AllDevices))
+
+	for _, monitor := range AllDevices {
+		monitor.DataLock.RLock()
+		result = append(result, DeviceData{
+			Online:  monitor.lastStatus.String(),
+			Latency: fmt.Sprintf("%f", monitor.averageLatency),
+		})
+		monitor.DataLock.RUnlock()
+	}
+
+	return result
 }

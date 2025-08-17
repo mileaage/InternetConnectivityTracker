@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func TestWifiLogger(t *testing.T) {
@@ -20,7 +22,12 @@ func TestWifiLogger(t *testing.T) {
 			t.Fatalf("Failed to create logger: %v", err)
 		}
 
-		myLogger.LogConnectivityCheck(true, time.Second*2, nil)
+		deviceID := uuid.NewString()
+		now := time.Now()
+		err = myLogger.LogConnectivityCheck(deviceID, true, time.Second*2, now, nil)
+		if err != nil {
+			t.Fatalf("Failed to log connectivity check: %v", err)
+		}
 
 		content, err := os.ReadFile(logFile)
 		if err != nil {
@@ -43,9 +50,11 @@ func TestWifiLogger(t *testing.T) {
 		}
 
 		testErr := fmt.Errorf("connection timeout")
-		myLogger.LogConnectivityCheck(false, time.Second*5, testErr)
+		deviceID := uuid.NewString()
+		now := time.Now()
+		err = myLogger.LogConnectivityCheck(deviceID, false, time.Second*5, now, testErr)
 		if err != nil {
-			t.Fatalf("Failed to log: %v", err)
+			t.Fatalf("Failed to log connectivity check: %v", err)
 		}
 
 		content, err := os.ReadFile(logFile)
@@ -69,9 +78,17 @@ func TestWifiLogger(t *testing.T) {
 		}
 
 		// first we log the outage
-		myLogger.LogOutageStart(time.Now().Add(-5 * time.Second))
-
-		myLogger.LogOutageEnd(time.Second*5, time.Now())
+		deviceID := uuid.NewString()
+		start := time.Now().Add(-5 * time.Second)
+		end := time.Now()
+		err = myLogger.LogOutageStart(deviceID, start)
+		if err != nil {
+			t.Fatalf("Failed to log outage start: %v", err)
+		}
+		err = myLogger.LogOutageEnd(deviceID, time.Second*5, end)
+		if err != nil {
+			t.Fatalf("Failed to log outage end: %v", err)
+		}
 
 		content, err := os.ReadFile(logFile)
 		if err != nil {
