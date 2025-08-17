@@ -32,7 +32,6 @@ var upgrader = websocket.Upgrader{
 }
 
 func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
-
 	// upgrade
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

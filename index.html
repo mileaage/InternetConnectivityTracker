@@ -10,6 +10,13 @@
         <p>Latency: <span id="latency">N/A</span> ms</p>
     </div>
 
+    <h2>Downtime Statistics</h2>
+    <div id="downtime">
+        <p>Downtime Today: <span id="down_today">N/A</span></p>
+        <p>Downtime This Week: <span id="down_week">N/A</span></p>
+        <p>Downtime This Month: <span id="down_month">N/A</span></p>
+    </div>
+
     <script>
         const ws = new WebSocket("ws://localhost:8080/ws");
 
@@ -17,6 +24,9 @@
             const data = JSON.parse(event.data);
             document.getElementById("online").textContent = data.Online;
             document.getElementById("latency").textContent = data.Latency;
+            document.getElementById("down_today").textContent = data.DownToday;
+            document.getElementById("down_week").textContent = data.down_week;
+            document.getElementById("down_month").textContent = data.down_month
         };
 
         ws.onclose = function() {
