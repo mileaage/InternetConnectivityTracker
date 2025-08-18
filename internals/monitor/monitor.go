@@ -17,36 +17,19 @@ import (
 
 var ErrConnectionDown = errors.New("connection is down")
 
-type ConnectionStatus int
-
-const (
-	Running ConnectionStatus = iota
-	Slow
-	Down
-	Inactive
-)
-
-func (c ConnectionStatus) String() string {
-	switch c {
-	case Running:
-		return "RUNNING"
-	case Slow:
-		return "SLOW"
-	case Down:
-		return "DOWN"
-	case Inactive:
-		return "INACTIVE"
-	default:
-		return "UNKNOWN"
-	}
-}
-
 type StorageProvider interface {
 	LogConnectivityCheck(deviceID string, success bool, responseTime time.Duration, timestamp time.Time, err error) error
 	LogStatusChange(deviceID string, from, to ConnectionStatus, timestamp time.Time) error
 	LogOutageStart(deviceID string, timestamp time.Time) error
 	LogOutageEnd(deviceID string, duration time.Duration, timestamp time.Time) error
-	GetDeviceStats(deviceID string, since time.Time) (*DeviceData, error)
+}
+
+type ConnectivityEvent struct {
+	DeviceID  string
+	EventID   string
+	EventType ConnectionStatus
+	Date      time.Time
+	Data      string
 }
 
 type WifiMonitor struct {
