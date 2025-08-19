@@ -24,6 +24,14 @@ type DatabaseStorage struct {
 	stmts map[string]*sql.Stmt
 }
 
+type DowntimeEvent struct {
+	ID        int
+	DeviceID  string
+	StartTime time.Time
+	EndTime   sql.NullTime
+	Duration  sql.NullInt64
+}
+
 func NewDatabaseStorage(dbPath string) (*DatabaseStorage, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -148,6 +156,30 @@ func (d *DatabaseStorage) LogOutageEnd(deviceID string, duration time.Duration, 
 	durationMs := duration.Milliseconds()
 	_, err := d.stmts["updateOutageEnd"].Exec(timestamp, durationMs, deviceID)
 	return err
+}
+
+func (d *DatabaseStorage) GetDowntimes(timespan time.Time) ([]DowntimeEvent, error) {
+	timeDifference := int(time.Since(timespan).Seconds())
+
+	rows, err := d.db.Query(`SELECT * FROM outages WHERE start_time >= ?`, timeDifference)
+	if err != nil {
+		return nil, err
+	}
+
+	result := []DowntimeEvent{}
+
+	for rows.Next() {
+		var event DowntimeEvent
+		err := rows.Scan(&event.ID, &event.DeviceID, &event.StartTime, &event.EndTime, &event.Duration)
+
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, event)
+	}
+
+	return result, nil
 }
 
 func (d *DatabaseStorage) Close() error {
