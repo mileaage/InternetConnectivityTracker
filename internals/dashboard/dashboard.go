@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	"WifiTracker/internals/db"
 	"WifiTracker/internals/monitor"
+	"WifiTracker/util"
 
 	"github.com/gorilla/websocket"
 )
@@ -27,7 +29,7 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for development
+		return true // allow all
 	},
 }
 
@@ -46,6 +48,18 @@ func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 	for {
 
 		deviceData := monitor.GetAllDeviceData()
+		dayDowntime := DowntimeErrorCheck(util.OneDayAgo())
+		weekDowntime := DowntimeErrorCheck(util.OneWeekAgo())
+		monthDowntime := DowntimeErrorCheck(util.OneMonthAgo())
+
+		// TODO: Add proper ranging
+
+		log.Printf("Data:\nDay: %+v\nWeek: %+v\nMonth: %+v\n", dayDowntime, weekDowntime, monthDowntime)
+
+		if err != nil {
+			log.Printf("Error fetching any downtimes: %v", err)
+			http.Error(w, "Error fetching downtimes", http.StatusBadRequest)
+		}
 
 		if len(deviceData) == 0 {
 			continue
@@ -65,8 +79,14 @@ func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func EvaluateCostImpact(outageTime float32) float32 {
-	return outageTime * 0.05
+func DowntimeErrorCheck(ts time.Time) []db.DowntimeEvent {
+	results, err := db.GetDowntimes(ts)
+	if err != nil {
+		log.Printf("Error fetching downtimes")
+		return nil
+	}
+
+	return results
 }
 
 func StartDashboard() {
