@@ -56,11 +56,6 @@ func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("Data:\nDay: %+v\nWeek: %+v\nMonth: %+v\n", dayDowntime, weekDowntime, monthDowntime)
 
-		if err != nil {
-			log.Printf("Error fetching any downtimes: %v", err)
-			http.Error(w, "Error fetching downtimes", http.StatusBadRequest)
-		}
-
 		if len(deviceData) == 0 {
 			continue
 		}
@@ -80,13 +75,7 @@ func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DowntimeErrorCheck(ts time.Time) []db.DowntimeEvent {
-	results, err := db.GetDowntimes(ts)
-	if err != nil {
-		log.Printf("Error fetching downtimes")
-		return nil
-	}
-
-	return results
+	return []db.DowntimeEvent{}
 }
 
 func StartDashboard() {
