@@ -45,16 +45,28 @@ func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("WebSocket connection established")
 
+	storage, err := db.NewDatabaseStorage("downtimedata.db")
+	if err != nil {
+		panic(err)
+	}
+
+	storage.LogOutageStart("bbed78db-4aa8-46bc-930e-e689aabf5eb0", time.Now())
+	storage.LogOutageEnd("bbed78db-4aa8-46bc-930e-e689aabf5eb0", time.Minute, time.Now())
+
+	// create the database connection
+	downtimeStorage, err := db.NewDatabaseStorage("downtimedata.db")
+	if err != nil {
+		log.Fatalf("Error opening database: %v\n", err)
+	}
+
 	for {
 
 		deviceData := monitor.GetAllDeviceData()
-		dayDowntime := DowntimeErrorCheck(util.OneDayAgo())
-		weekDowntime := DowntimeErrorCheck(util.OneWeekAgo())
-		monthDowntime := DowntimeErrorCheck(util.OneMonthAgo())
+		dayDowntime := DowntimeErrorCheck(downtimeStorage, util.OneDayAgo())
+		weekDowntime := DowntimeErrorCheck(downtimeStorage, util.OneWeekAgo())
+		monthDowntime := DowntimeErrorCheck(downtimeStorage, util.OneMonthAgo())
 
-		// TODO: Add proper ranging
-
-		log.Printf("Data:\nDay: %+v\nWeek: %+v\nMonth: %+v\n", dayDowntime, weekDowntime, monthDowntime)
+		// log.Printf("Data:\nDay: %+v\nWeek: %+v\nMonth: %+v\n", dayDowntime, weekDowntime, monthDowntime)
 
 		if len(deviceData) == 0 {
 			continue
@@ -65,7 +77,23 @@ func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 		// experimental for now
 		firstValue := deviceData[0]
 
-		if err := conn.WriteJSON(firstValue); err != nil {
+		valuesOver := struct {
+			Online         string
+			Latency        string
+			DayDowntimes   []db.DowntimeEvent
+			WeekDowntimes  []db.DowntimeEvent
+			MonthDowntimes []db.DowntimeEvent
+		}{
+			Online:         firstValue.Online,
+			Latency:        firstValue.Latency,
+			DayDowntimes:   dayDowntime,
+			WeekDowntimes:  weekDowntime,
+			MonthDowntimes: monthDowntime,
+		}
+
+		log.Printf("%+v\n", valuesOver)
+
+		if err := conn.WriteJSON(valuesOver); err != nil {
 			log.Fatalf("Error Parsing JSON: %v", deviceData)
 		}
 
@@ -74,8 +102,13 @@ func WebsocketHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func DowntimeErrorCheck(ts time.Time) []db.DowntimeEvent {
-	return []db.DowntimeEvent{}
+func DowntimeErrorCheck(db *db.DatabaseStorage, ts time.Time) []db.DowntimeEvent {
+	result, err := db.GetDowntimes(ts)
+	if err != nil {
+		log.Printf("Error fetching downtimes: %v", err)
+		return nil
+	}
+	return result
 }
 
 func StartDashboard() {

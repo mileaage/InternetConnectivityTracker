@@ -24,14 +24,6 @@ type DatabaseStorage struct {
 	stmts map[string]*sql.Stmt
 }
 
-type DowntimeEvent struct {
-	ID        int
-	DeviceID  string
-	StartTime time.Time
-	EndTime   sql.NullTime
-	Duration  sql.NullInt64
-}
-
 func NewDatabaseStorage(dbPath string) (*DatabaseStorage, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
